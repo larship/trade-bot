@@ -76,6 +76,10 @@ function OnParam(class, sec)
     end
 end
 
+function OnTransReply(trans)
+   log("OnTransReply: " .. tableToString(trans))
+end
+
 function getParams(classCode, secCode)
     bidCount = getParamEx(classCode, secCode, "bid_count")
     bid = getParamEx(classCode, secCode, "bid")
@@ -157,7 +161,7 @@ function process()
                 FIRM_ID = FirmId,
                 EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
                 TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
-                TRANS_ID = 1, -- От 1 до 2 147 483 647, порядковый номер
+                --TRANS_ID = tostring(1000 * os.clock()), -- От 1 до 2 147 483 647, порядковый номер
                 ACTION = "NEW_ORDER",
                 OPERATION = "B", -- S - продать (sell), B - купить (buy)
                 PRICE = "0",
