@@ -147,6 +147,15 @@ function process()
              if  math.abs(profitTotalAmount - brokerComissionAmount) >= DecisionValue * DecisionSellFactor then
                 -- @todo Тут надо продавать позицию
                 log("Надо продавать и фиксировать убыток: " .. math.abs(profitTotalAmount - brokerComissionAmount))
+
+                -- @todo Сделать фикс для нулевой цены. Запись из лога:
+                -- 10-08-2021 9:03:02.470: params: {
+                --  bid_price = "0.000000",
+                --  offer_price = "0.000000",
+                -- }
+                -- 10-08-2021 9:03:02.470: priceDiff: -319,01
+                -- 10-08-2021 9:03:02.470: profitTotalAmount, brokerComissionAmount, DecisionValue: -3190,1, 0,0, 50
+                -- 10-08-2021 9:03:02.470: Надо продавать и фиксировать убыток: 3190,1
              end
         end
     else
@@ -158,10 +167,9 @@ function process()
                 CLIENT_CODE = ClientCode,
                 CLASSCODE = ClassCode,
                 SECCODE = SecCode,
-                FIRM_ID = FirmId,
                 EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
                 TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
-                --TRANS_ID = tostring(1000 * os.clock()), -- От 1 до 2 147 483 647, порядковый номер
+                TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
                 ACTION = "NEW_ORDER",
                 OPERATION = "B", -- S - продать (sell), B - купить (buy)
                 PRICE = "0",
@@ -169,7 +177,6 @@ function process()
             })
 
             log("RESULT: " .. result)
-            log("RESULT: " .. tableToString(result))
             message("RESULT: " .. result)
 
             AlreadyBuy = true
