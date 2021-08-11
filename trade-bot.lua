@@ -13,12 +13,15 @@ BrokerComissionFactor = 0.0006 -- Процент комиссии брокера
 DecisionValue = 50 -- Количество денег, которые мы хотим заработать с каждой сделки
 DecisionSellFactor = 0.3 -- Множитель для решения о продаже
 
+BuyQuantity = 10
+
 PositionData = {
     awg_price = 0,
     count = 0
 }
 
-AlreadyBuy = false
+-- @todo После совершения сделок ставить торговлю на паузу на 10 секунд, чтобы туда-сюда не продавать-покупать
+PauseTrasing = false
 
 function main()
     log("Запускаем скрипт, " .. _VERSION)
@@ -27,12 +30,7 @@ function main()
     local money = getMoney(ClientCode, FirmId, Tag, "SUR")
     log("Money: " .. tableToString(money))
 
-    local depo = getDepoEx(FirmId, ClientCode, SecCode, TradingAccountId, 0)
-    PositionData["awg_price"] = depo["awg_position_price"]
-    PositionData["count"] = depo["currentbal"]
-
-    log("Depo: " .. tableToString(depo))
-    log("PositionData: " .. tableToString(PositionData))
+    
     
 
     -- 04-08-2021 11:24:10.358: Money: {
@@ -63,6 +61,7 @@ function main()
     --  openbal = 0.0,
     -- }
 
+    updatePositionData()
     process()
 
     while true do
@@ -77,7 +76,21 @@ function OnParam(class, sec)
 end
 
 function OnTransReply(trans)
-   log("OnTransReply: " .. tableToString(trans))
+    log("OnTransReply: " .. tableToString(trans))
+end
+
+-- Функция вызывается терминалом QUIK при получении изменений лимита по бумагам
+function OnDepoLimit(dlimit)
+    updatePositionData()
+end
+
+function updatePositionData()
+    local depo = getDepoEx(FirmId, ClientCode, SecCode, TradingAccountId, 0)
+    PositionData["awg_price"] = depo["awg_position_price"]
+    PositionData["count"] = math.floor(depo["currentbal"])
+
+    log("Depo: " .. tableToString(depo))
+    log("PositionData: " .. tableToString(PositionData))
 end
 
 function getParams(classCode, secCode)
@@ -133,11 +146,37 @@ function process()
         ", " .. DecisionValue)
 
     if PositionData["count"] > 0 then
+        if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
+            log("Неконсистентные данные, ничего не делаем: " .. tableToString(params) .. ", " .. tableToString(PositionData))
+            return
+        end
+
         if priceDiff > 0 then
             -- Цена увеличилась, прибыль при продаже
             if  profitTotalAmount - brokerComissionAmount >= DecisionValue then
                 -- @todo Тут надо продавать позицию
                 log("Надо продавать, получим чистую прибыль: " .. profitTotalAmount - brokerComissionAmount)
+
+                result = sendTransaction({
+                    ACCOUNT = TradingAccountId,
+                    CLIENT_CODE = ClientCode,
+                    CLASSCODE = ClassCode,
+                    SECCODE = SecCode,
+                    EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
+                    TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
+                    TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
+                    ACTION = "NEW_ORDER",
+                    OPERATION = "S", -- S - продать (sell), B - купить (buy)
+                    PRICE = "0",
+                    QUANTITY = tostring(math.floor(PositionData["count"]))
+                })
+
+                PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус
+
+                log("PositionData: " .. tableToString(PositionData))
+
+                log("RESULT: " .. result)
+                message("RESULT: " .. result)
             else
                 log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
                     " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. DecisionValue)
@@ -161,25 +200,24 @@ function process()
     else
         -- @todo Тут надо покупать позицию. Также возможно сюда прикрутить стратегию на понижение
         log("Надо покупать позицию, потому-что её нет")
-        if AlreadyBuy == false then
-            result = sendTransaction({
-                ACCOUNT = TradingAccountId,
-                CLIENT_CODE = ClientCode,
-                CLASSCODE = ClassCode,
-                SECCODE = SecCode,
-                EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
-                TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
-                TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
-                ACTION = "NEW_ORDER",
-                OPERATION = "B", -- S - продать (sell), B - купить (buy)
-                PRICE = "0",
-                QUANTITY = "1"
-            })
+        result = sendTransaction({
+            ACCOUNT = TradingAccountId,
+            CLIENT_CODE = ClientCode,
+            CLASSCODE = ClassCode,
+            SECCODE = SecCode,
+            EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
+            TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
+            TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
+            ACTION = "NEW_ORDER",
+            OPERATION = "B", -- S - продать (sell), B - купить (buy)
+            PRICE = "0",
+            QUANTITY = tostring(math.floor(BuyQuantity))
+        })
 
-            log("RESULT: " .. result)
-            message("RESULT: " .. result)
+        PositionData["count"] = math.floor(BuyQuantity)
 
-            AlreadyBuy = true
-        end
+        log("RESULT: " .. result)
+        log("PositionData: " .. tableToString(PositionData))
+        message("RESULT: " .. result)
     end
 end
