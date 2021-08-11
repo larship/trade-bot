@@ -10,18 +10,16 @@ TradingAccountId = "NL0011100043" -- Счет депо
 
 BrokerComissionFactor = 0.0006 -- Процент комиссии брокера за каждую операцию - 0.06%
 
-DecisionValue = 50 -- Количество денег, которые мы хотим заработать с каждой сделки
-DecisionSellFactor = 0.3 -- Множитель для решения о продаже
-
 BuyQuantity = 10
+DecisionValue = BuyQuantity * 20 -- Количество денег, которые мы хотим заработать с каждой сделки
+DecisionSellFactor = 0.3 -- Множитель для решения о продаже
 
 PositionData = {
     awg_price = 0,
     count = 0
 }
 
--- @todo После совершения сделок ставить торговлю на паузу на 10 секунд, чтобы туда-сюда не продавать-покупать
-PauseTrasing = false
+PauseTrading = false
 
 function main()
     log("Запускаем скрипт, " .. _VERSION)
@@ -65,7 +63,12 @@ function main()
     process()
 
     while true do
-        -- @todo Чекать конец дня и продавать всё
+        sleep(1)
+
+        if isTradingPaused() then
+            sleep(10000)
+            pauseTrading(false)
+        end
     end
 end
 
@@ -124,6 +127,11 @@ function getParams(classCode, secCode)
 end
 
 function process()
+    if isTradingPaused() then
+        log("Ничего не делаем, торговля на паузе")
+        return
+    end
+
     -- Вначале надо проверить, есть ли у нас купленная позиция
     --     Если позиции нет - просто покупаем
     --     Если позиция есть:
@@ -172,6 +180,7 @@ function process()
                 })
 
                 PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус
+                pauseTrading(true)
 
                 log("PositionData: " .. tableToString(PositionData))
 
@@ -215,9 +224,18 @@ function process()
         })
 
         PositionData["count"] = math.floor(BuyQuantity)
+        pauseTrading(true)
 
         log("RESULT: " .. result)
         log("PositionData: " .. tableToString(PositionData))
         message("RESULT: " .. result)
     end
+end
+
+function pauseTrading(pause)
+    PauseTrading = pause;
+end
+
+function isTradingPaused()
+    return PauseTrading
 end
