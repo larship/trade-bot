@@ -3,16 +3,16 @@ require("helper")
 ClassCode = "QJSIM"
 SecCode = "SBER"
 
-ClientCode = "10427"
+ClientCode = "10427" -- Тестовый код клиента
 FirmId = "NC0011100000" -- NC0011100000 - фондовая биржа, SPBFUT000000 - срочный рынок, MB1000100000 - валютный рынок
 Tag = "EQTV" -- EQTV, USDR, RTOD, RTOM
 TradingAccountId = "NL0011100043" -- Счет депо
 
 BrokerComissionFactor = 0.0006 -- Процент комиссии брокера за каждую операцию - 0.06%
 
-BuyQuantity = 10
-DecisionValue = BuyQuantity * 20 -- Количество денег, которые мы хотим заработать с каждой сделки
-DecisionSellFactor = 0.3 -- Множитель для решения о продаже
+BuyLotQuantity = 10
+DecisionValue = 100 -- Количество денег, которые мы хотим заработать с каждой сделки
+DecisionSellFactor = 0.5 -- Множитель для решения о продаже
 
 PositionData = {
     awg_price = 0,
@@ -21,15 +21,15 @@ PositionData = {
 
 PauseTrading = false
 
+TradeTypeBuy = "B"
+TradeTypeSell = "S"
+
 function main()
     log("Запускаем скрипт, " .. _VERSION)
 
     -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
     local money = getMoney(ClientCode, FirmId, Tag, "SUR")
     log("Money: " .. tableToString(money))
-
-    
-    
 
     -- 04-08-2021 11:24:10.358: Money: {
     --  money_open_balance = 296936.38,
@@ -39,24 +39,6 @@ function main()
     --  money_limit_locked_nonmarginal_value = 0.0,
     --  money_current_balance = 296936.38,
     --  money_current_limit = 0.0,
-    -- }
-
-    -- 03-08-2021 02:00:10.312: Depo: {
-    -- wa_position_price = 306.3,
-    --  client_code = "10427",
-    --  currentbal = 10.0, - текущий остаток по бумаге (ВОТ ЭТО И НУЖНО)
-    --  limit_kind = 0, - 0 = T0, 1 = T1, 2 =T2
-    --  awg_position_price = 306.3, - цена приобретения (ЭТО ТОЖЕ НУЖНО)
-    --  trdaccid = "NL0011100043", -- счет депо
-    --  locked_sell = 0.0, - заблокировано на продажу количество лотов
-    --  locked_sell_value = 0.0, - стоимость ценных бумаг, заблокированны под продажу
-    --  locked_buy = 0.0, - заблокировано на покупку количество лотов
-    --  locked_buy_value = 0.0, - стоимость ценных бумаг, заблокированных под покупку
-    --  firmid = "NC0011100000",
-    --  currentlimit = 0.0, - текущий лимит по бамаге
-    --  openlimit = 0.0,
-    --  sec_code = "SBER",
-    --  openbal = 0.0,
     -- }
 
     updatePositionData()
@@ -93,7 +75,24 @@ function updatePositionData()
     PositionData["count"] = math.floor(depo["currentbal"])
 
     log("Depo: " .. tableToString(depo))
-    log("PositionData: " .. tableToString(PositionData))
+
+    -- 03-08-2021 02:00:10.312: Depo: {
+    -- wa_position_price = 306.3,
+    --  client_code = "10427",
+    --  currentbal = 10.0, - текущий остаток по бумаге (ВОТ ЭТО И НУЖНО)
+    --  limit_kind = 0, - 0 = T0, 1 = T1, 2 =T2
+    --  awg_position_price = 306.3, - цена приобретения (ЭТО ТОЖЕ НУЖНО)
+    --  trdaccid = "NL0011100043", -- счет депо
+    --  locked_sell = 0.0, - заблокировано на продажу количество лотов
+    --  locked_sell_value = 0.0, - стоимость ценных бумаг, заблокированны под продажу
+    --  locked_buy = 0.0, - заблокировано на покупку количество лотов
+    --  locked_buy_value = 0.0, - стоимость ценных бумаг, заблокированных под покупку
+    --  firmid = "NC0011100000",
+    --  currentlimit = 0.0, - текущий лимит по бамаге
+    --  openlimit = 0.0,
+    --  sec_code = "SBER",
+    --  openbal = 0.0,
+    -- }
 end
 
 function getParams(classCode, secCode)
@@ -101,6 +100,7 @@ function getParams(classCode, secCode)
     bid = getParamEx(classCode, secCode, "bid")
     offerCount = getParamEx(classCode, secCode, "offet_count")
     offer = getParamEx(classCode, secCode, "offer")
+    lotsize = getParamEx(classCode, secCode, "lotsize")
 
     -- quotes = getQuoteLevel2(classCode, secCode)
 
@@ -118,11 +118,12 @@ function getParams(classCode, secCode)
     --    «0» - ошибка; 
     --    «1» - параметр найден  
 
-    log("Спрос: " .. bid["param_value"] .. ", предложение: " .. offer["param_value"])
+    log("Спрос: " .. bid["param_value"] .. ", предложение: " .. offer["param_value"] .. ", штук в лоте: " .. math.ceil(lotsize["param_value"]))
 
     return {
         bid_price = bid["param_value"],
-        offer_price = offer["param_value"]
+        offer_price = offer["param_value"],
+        lot_size = math.ceil(lotsize["param_value"]),
     }
 end
 
@@ -148,10 +149,8 @@ function process()
     local profitTotalAmount = params["bid_price"] * PositionData["count"] - PositionData["awg_price"] * PositionData["count"]
     local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * BrokerComissionFactor)
 
-    log("params: " .. tableToString(params))
-    log("priceDiff: " .. priceDiff)
-    log("profitTotalAmount, brokerComissionAmount, DecisionValue: " .. profitTotalAmount .. ", " .. brokerComissionAmount ..
-        ", " .. DecisionValue)
+    log("priceDiff: " .. priceDiff .. ", profitTotalAmount: " .. profitTotalAmount .. ", brokerComissionAmount: " .. brokerComissionAmount ..
+        ", DecisionValue: " .. DecisionValue .. "/-" .. DecisionValue * DecisionSellFactor .. ", прибыль: " .. profitTotalAmount - brokerComissionAmount)
 
     if PositionData["count"] > 0 then
         if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
@@ -165,36 +164,16 @@ function process()
                 -- @todo Тут надо продавать позицию
                 log("Надо продавать, получим чистую прибыль: " .. profitTotalAmount - brokerComissionAmount)
 
-                result = sendTransaction({
-                    ACCOUNT = TradingAccountId,
-                    CLIENT_CODE = ClientCode,
-                    CLASSCODE = ClassCode,
-                    SECCODE = SecCode,
-                    EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
-                    TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
-                    TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
-                    ACTION = "NEW_ORDER",
-                    OPERATION = "S", -- S - продать (sell), B - купить (buy)
-                    PRICE = "0",
-                    QUANTITY = tostring(math.floor(PositionData["count"]))
-                })
-
-                PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус
-                pauseTrading(true)
-
-                log("PositionData: " .. tableToString(PositionData))
-
-                log("RESULT: " .. result)
-                message("RESULT: " .. result)
+                sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             else
-                log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
-                    " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. DecisionValue)
+               -- log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
+                 --   " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. DecisionValue)
             end
         elseif priceDiff < 0 then
             -- Цена уменьшилась, фиксируем убыток
              if  math.abs(profitTotalAmount - brokerComissionAmount) >= DecisionValue * DecisionSellFactor then
-                -- @todo Тут надо продавать позицию
                 log("Надо продавать и фиксировать убыток: " .. math.abs(profitTotalAmount - brokerComissionAmount))
+                sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
 
                 -- @todo Сделать фикс для нулевой цены. Запись из лога:
                 -- 10-08-2021 9:03:02.470: params: {
@@ -209,27 +188,39 @@ function process()
     else
         -- @todo Тут надо покупать позицию. Также возможно сюда прикрутить стратегию на понижение
         log("Надо покупать позицию, потому-что её нет")
-        result = sendTransaction({
-            ACCOUNT = TradingAccountId,
-            CLIENT_CODE = ClientCode,
-            CLASSCODE = ClassCode,
-            SECCODE = SecCode,
-            EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
-            TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
-            TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
-            ACTION = "NEW_ORDER",
-            OPERATION = "B", -- S - продать (sell), B - купить (buy)
-            PRICE = "0",
-            QUANTITY = tostring(math.floor(BuyQuantity))
-        })
-
-        PositionData["count"] = math.floor(BuyQuantity)
-        pauseTrading(true)
-
-        log("RESULT: " .. result)
-        log("PositionData: " .. tableToString(PositionData))
-        message("RESULT: " .. result)
+        sendOrder(TradeTypeBuy, BuyLotQuantity)
     end
+end
+
+function sendOrder(tradeType, quantity)
+    log("Отправляем заявку на " .. (tradeType == TradeTypeBuy and "покупку" or "продажу") .. " " .. quantity .. " лотов")
+
+    result = sendTransaction({
+        ACCOUNT = TradingAccountId,
+        CLIENT_CODE = ClientCode,
+        CLASSCODE = ClassCode,
+        SECCODE = SecCode,
+        EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
+        TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
+        TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
+        ACTION = "NEW_ORDER",
+        OPERATION = tradeType, -- S - продать (sell), B - купить (buy)
+        PRICE = "0",
+        QUANTITY = tostring(math.floor(quantity))
+    })
+
+    if tradeType == TradeTypeBuy then
+        PositionData["count"] = math.floor(BuyLotQuantity)
+        --log("PositionData: " .. tableToString(PositionData))
+    else
+        PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус
+        --log("PositionData: " .. tableToString(PositionData))
+    end
+
+    log("Результат отправки заявки: " .. result)
+    --message("RESULT: " .. result)
+
+    pauseTrading(true)
 end
 
 function pauseTrading(pause)
