@@ -145,11 +145,11 @@ function process()
     -- Потому-что данный бот пока-что не умеет торговать в прибыль при падении
 
     local params = getParams(ClassCode, SecCode)
-    local priceDiff = params["bid_price"] - PositionData["awg_price"]
     local profitTotalAmount = params["bid_price"] * PositionData["count"] - PositionData["awg_price"] * PositionData["count"]
     local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * BrokerComissionFactor)
 
-    log("priceDiff: " .. priceDiff .. ", profitTotalAmount: " .. profitTotalAmount .. ", brokerComissionAmount: " .. brokerComissionAmount ..
+    local priceDiff = params["bid_price"] - PositionData["awg_price"]
+    log("Цена покупки позиции: " .. PositionData["awg_price"] .. ", priceDiff: " .. priceDiff .. ", profitTotalAmount: " .. profitTotalAmount .. ", brokerComissionAmount: " .. brokerComissionAmount ..
         ", DecisionValue: " .. DecisionValue .. "/-" .. DecisionValue * DecisionSellFactor .. ", прибыль: " .. profitTotalAmount - brokerComissionAmount)
 
     if PositionData["count"] > 0 then
