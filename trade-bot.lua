@@ -1,4 +1,5 @@
 require("helper")
+require("config")
 
 ClassCode = "QJSIM"
 SecCode = "SBER"
@@ -11,8 +12,8 @@ TradingAccountId = "NL0011100043" -- Счет депо
 BrokerComissionFactor = 0.0006 -- Процент комиссии брокера за каждую операцию - 0.06%
 
 BuyLotQuantity = 10
-DecisionValue = 100 -- Количество денег, которые мы хотим заработать с каждой сделки
-DecisionSellFactor = 0.5 -- Множитель для решения о продаже
+DecisionValue = 150 -- Количество денег, которые мы хотим заработать с каждой сделки
+DecisionSellFactor = 0.7 -- Множитель для решения о продаже
 
 PositionData = {
     awg_price = 0,
@@ -41,6 +42,7 @@ function main()
     --  money_current_limit = 0.0,
     -- }
 
+    initConfig()
     updatePositionData()
     process()
 
@@ -146,7 +148,7 @@ function process()
 
     local params = getParams(ClassCode, SecCode)
     local profitTotalAmount = params["bid_price"] * PositionData["count"] - PositionData["awg_price"] * PositionData["count"]
-    local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * BrokerComissionFactor)
+    local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * BrokerComissionFactor * 2) -- *2 здесь - т.к. комиссия есть и за покупку, и за продажу
 
     local priceDiff = params["bid_price"] - PositionData["awg_price"]
     log("Цена покупки позиции: " .. PositionData["awg_price"] .. ", priceDiff: " .. priceDiff .. ", profitTotalAmount: " .. profitTotalAmount .. ", brokerComissionAmount: " .. brokerComissionAmount ..
