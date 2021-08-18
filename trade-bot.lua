@@ -1,20 +1,6 @@
 require("helper")
 require("config")
 
-ClassCode = "QJSIM"
-SecCode = "SBER"
-
-ClientCode = "10427" -- Тестовый код клиента
-FirmId = "NC0011100000" -- NC0011100000 - фондовая биржа, SPBFUT000000 - срочный рынок, MB1000100000 - валютный рынок
-Tag = "EQTV" -- EQTV, USDR, RTOD, RTOM
-TradingAccountId = "NL0011100043" -- Счет депо
-
-BrokerComissionFactor = 0.0006 -- Процент комиссии брокера за каждую операцию - 0.06%
-
-BuyLotQuantity = 10
-DecisionValue = 150 -- Количество денег, которые мы хотим заработать с каждой сделки
-DecisionSellFactor = 0.7 -- Множитель для решения о продаже
-
 PositionData = {
     awg_price = 0,
     count = 0
@@ -28,10 +14,6 @@ TradeTypeSell = "S"
 function main()
     log("Запускаем скрипт, " .. _VERSION)
 
-    -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
-    local money = getMoney(ClientCode, FirmId, Tag, "SUR")
-    log("Money: " .. tableToString(money))
-
     -- 04-08-2021 11:24:10.358: Money: {
     --  money_open_balance = 296936.38,
     --  money_open_limit = 0.0,
@@ -43,6 +25,11 @@ function main()
     -- }
 
     initConfig()
+
+    -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
+    local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
+    log("Money: " .. tableToString(money))
+
     updatePositionData()
     process()
 
@@ -57,7 +44,7 @@ function main()
 end
 
 function OnParam(class, sec)
-    if class == ClassCode and sec == SecCode then
+    if class == getConfigValue("CLASS_CODE") and sec == getConfigValue("SEC_CODE") then
         process()
     end
 end
@@ -72,7 +59,7 @@ function OnDepoLimit(dlimit)
 end
 
 function updatePositionData()
-    local depo = getDepoEx(FirmId, ClientCode, SecCode, TradingAccountId, 0)
+    local depo = getDepoEx(getConfigValue("FIRM_ID"), getConfigValue("CLIENT_CODE"), getConfigValue("SEC_CODE"), getConfigValue("TRADING_ACCOUNT_ID"), 0)
     PositionData["awg_price"] = depo["awg_position_price"]
     PositionData["count"] = math.floor(depo["currentbal"])
 
@@ -120,7 +107,7 @@ function getParams(classCode, secCode)
     --    «0» - ошибка; 
     --    «1» - параметр найден  
 
-    log("Спрос: " .. bid["param_value"] .. ", предложение: " .. offer["param_value"] .. ", штук в лоте: " .. math.ceil(lotsize["param_value"]))
+    log("Спрос: " .. rouns(bid["param_value"], 2) .. ", предложение: " .. round(offer["param_value"], 2) .. ", штук в лоте: " .. math.ceil(lotsize["param_value"]))
 
     return {
         bid_price = bid["param_value"],
@@ -146,13 +133,13 @@ function process()
     -- Например, каждые минуту / пять минут проверять цену, если она падает сколько то раз подряд - алертить и вообще не торговать
     -- Потому-что данный бот пока-что не умеет торговать в прибыль при падении
 
-    local params = getParams(ClassCode, SecCode)
+    local params = getParams(getConfigValue("CLASS_CODE"), getConfigValue("SEC_CODE"))
     local profitTotalAmount = params["bid_price"] * PositionData["count"] - PositionData["awg_price"] * PositionData["count"]
-    local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * BrokerComissionFactor * 2) -- *2 здесь - т.к. комиссия есть и за покупку, и за продажу
+    local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * tonumber(getConfigValue("BROKER_COMISSION_FACTOR")) * 2) -- *2 здесь - т.к. комиссия есть и за покупку, и за продажу
 
     local priceDiff = params["bid_price"] - PositionData["awg_price"]
-    log("Цена покупки позиции: " .. PositionData["awg_price"] .. ", priceDiff: " .. priceDiff .. ", profitTotalAmount: " .. profitTotalAmount .. ", brokerComissionAmount: " .. brokerComissionAmount ..
-        ", DecisionValue: " .. DecisionValue .. "/-" .. DecisionValue * DecisionSellFactor .. ", прибыль: " .. profitTotalAmount - brokerComissionAmount)
+    log("Цена покупки позиции: " .. round(PositionData["awg_price"], 2) .. ", priceDiff: " .. round(priceDiff , 2).. ", profitTotalAmount: " .. round(profitTotalAmount, 2) .. ", brokerComissionAmount: " .. round(brokerComissionAmount, 2) ..
+        ", DECISION_VALUES: " .. getConfigValue("DECISION_POSITIVE_VALUE") .. "/-" .. getConfigValue("DECISION_NEGATIVE_VALUE") .. ", прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
 
     if PositionData["count"] > 0 then
         if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
@@ -162,19 +149,19 @@ function process()
 
         if priceDiff > 0 then
             -- Цена увеличилась, прибыль при продаже
-            if  profitTotalAmount - brokerComissionAmount >= DecisionValue then
+            if  profitTotalAmount - brokerComissionAmount >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
                 -- @todo Тут надо продавать позицию
-                log("Надо продавать, получим чистую прибыль: " .. profitTotalAmount - brokerComissionAmount)
+                log("Надо продавать, получим чистую прибыль: " .. rouns(profitTotalAmount - brokerComissionAmount, 2))
 
                 sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             else
                -- log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
-                 --   " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. DecisionValue)
+                 --   " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. getConfigValue("DECISION_POSITIVE_VALUE"))
             end
         elseif priceDiff < 0 then
             -- Цена уменьшилась, фиксируем убыток
-             if  math.abs(profitTotalAmount - brokerComissionAmount) >= DecisionValue * DecisionSellFactor then
-                log("Надо продавать и фиксировать убыток: " .. math.abs(profitTotalAmount - brokerComissionAmount))
+             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
+                log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
 
                 -- @todo Сделать фикс для нулевой цены. Запись из лога:
@@ -183,14 +170,14 @@ function process()
                 --  offer_price = "0.000000",
                 -- }
                 -- 10-08-2021 9:03:02.470: priceDiff: -319,01
-                -- 10-08-2021 9:03:02.470: profitTotalAmount, brokerComissionAmount, DecisionValue: -3190,1, 0,0, 50
+                -- 10-08-2021 9:03:02.470: profitTotalAmount, brokerComissionAmount, getConfigValue("DECISION_POSITIVE_VALUE"): -3190,1, 0,0, 50
                 -- 10-08-2021 9:03:02.470: Надо продавать и фиксировать убыток: 3190,1
              end
         end
     else
         -- @todo Тут надо покупать позицию. Также возможно сюда прикрутить стратегию на понижение
         log("Надо покупать позицию, потому-что её нет")
-        sendOrder(TradeTypeBuy, BuyLotQuantity)
+        sendOrder(TradeTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
     end
 end
 
@@ -198,21 +185,21 @@ function sendOrder(tradeType, quantity)
     log("Отправляем заявку на " .. (tradeType == TradeTypeBuy and "покупку" or "продажу") .. " " .. quantity .. " лотов")
 
     result = sendTransaction({
-        ACCOUNT = TradingAccountId,
-        CLIENT_CODE = ClientCode,
-        CLASSCODE = ClassCode,
-        SECCODE = SecCode,
+        ACCOUNT = getConfigValue("TRADING_ACCOUNT_ID"),
+        CLIENT_CODE = getConfigValue("CLIENT_CODE"),
+        CLASSCODE = getConfigValue("CLASS_CODE"),
+        SECCODE = getConfigValue("SEC_CODE"),
         EXECUTION_CONDITION = "FILL_OR_KILL", -- Исполнить немедленно или отклонить. По-умолчанию - поставить в очередь
         TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
         TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
         ACTION = "NEW_ORDER",
         OPERATION = tradeType, -- S - продать (sell), B - купить (buy)
         PRICE = "0",
-        QUANTITY = tostring(math.floor(quantity))
+        QUANTITY = tostring(quantity)
     })
 
     if tradeType == TradeTypeBuy then
-        PositionData["count"] = math.floor(BuyLotQuantity)
+        PositionData["count"] = quantity
         --log("PositionData: " .. tableToString(PositionData))
     else
         PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус

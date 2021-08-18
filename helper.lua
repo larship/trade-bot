@@ -33,3 +33,8 @@ function tableToString(val, name, depth)
 
     return text
 end
+
+function round(val, fractionCount)
+  local multiplier = 10 ^ (fractionCount or 0)
+  return math.floor(val * multiplier + 0.5) / multiplier
+end
