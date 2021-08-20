@@ -141,12 +141,12 @@ function process()
     log("Цена покупки позиции: " .. round(PositionData["awg_price"], 2) .. ", priceDiff: " .. round(priceDiff , 2).. ", profitTotalAmount: " .. round(profitTotalAmount, 2) .. ", brokerComissionAmount: " .. round(brokerComissionAmount, 2) ..
         ", DECISION_VALUES: " .. getConfigValue("DECISION_POSITIVE_VALUE") .. "/-" .. getConfigValue("DECISION_NEGATIVE_VALUE") .. ", прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
 
-    if PositionData["count"] > 0 then
-        if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
-            log("Неконсистентные данные, ничего не делаем: " .. tableToString(params) .. ", " .. tableToString(PositionData))
-            return
-        end
+    if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
+        log("Неконсистентные данные, ничего не делаем: " .. tableToString(params) .. ", " .. tableToString(PositionData))
+        return
+    end
 
+    if PositionData["count"] > 0 then
         if priceDiff > 0 then
             -- Цена увеличилась, прибыль при продаже
             if  profitTotalAmount - brokerComissionAmount >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
@@ -163,15 +163,6 @@ function process()
              if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
                 log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
-
-                -- @todo Сделать фикс для нулевой цены. Запись из лога:
-                -- 10-08-2021 9:03:02.470: params: {
-                --  bid_price = "0.000000",
-                --  offer_price = "0.000000",
-                -- }
-                -- 10-08-2021 9:03:02.470: priceDiff: -319,01
-                -- 10-08-2021 9:03:02.470: profitTotalAmount, brokerComissionAmount, getConfigValue("DECISION_POSITIVE_VALUE"): -3190,1, 0,0, 50
-                -- 10-08-2021 9:03:02.470: Надо продавать и фиксировать убыток: 3190,1
              end
         end
     else
