@@ -11,6 +11,10 @@ PauseTrading = false
 TradeTypeBuy = "B"
 TradeTypeSell = "S"
 
+TrendData = {}
+TrendTypeBull = "Bull" -- Восходящий тренд
+TrendTypeBear = "Bear" -- Нисходящий тренд
+
 function main()
     log("Запускаем скрипт, " .. _VERSION)
 
@@ -85,11 +89,13 @@ function updatePositionData()
 end
 
 function getParams(classCode, secCode)
-    bidCount = getParamEx(classCode, secCode, "bid_count")
-    bid = getParamEx(classCode, secCode, "bid")
-    offerCount = getParamEx(classCode, secCode, "offet_count")
-    offer = getParamEx(classCode, secCode, "offer")
-    lotsize = getParamEx(classCode, secCode, "lotsize")
+    -- @todo Данная функция не нужна, надо её выпилить
+
+    local bidCount = getParamEx(classCode, secCode, "bid_count")
+    local bid = getParamEx(classCode, secCode, "bid")
+    local offerCount = getParamEx(classCode, secCode, "offet_count")
+    local offer = getParamEx(classCode, secCode, "offer")
+    local lotsize = getParamEx(classCode, secCode, "lotsize")
 
     -- quotes = getQuoteLevel2(classCode, secCode)
 
@@ -106,8 +112,6 @@ function getParams(classCode, secCode)
     -- result STRING Результат выполнения операции. Возможные значения: 
     --    «0» - ошибка; 
     --    «1» - параметр найден  
-
-    log("Спрос: " .. rouns(bid["param_value"], 2) .. ", предложение: " .. round(offer["param_value"], 2) .. ", штук в лоте: " .. math.ceil(lotsize["param_value"]))
 
     return {
         bid_price = bid["param_value"],
@@ -138,10 +142,11 @@ function process()
     local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * tonumber(getConfigValue("BROKER_COMISSION_FACTOR")) * 2) -- *2 здесь - т.к. комиссия есть и за покупку, и за продажу
 
     local priceDiff = params["bid_price"] - PositionData["awg_price"]
+    log("Спрос: " .. round(params["bid_price"], 2) .. ", предложение: " .. round(params["offer_price"], 2) .. ", штук в лоте: " .. math.ceil(params["lot_size"]))
     log("Цена покупки позиции: " .. round(PositionData["awg_price"], 2) .. ", priceDiff: " .. round(priceDiff , 2).. ", profitTotalAmount: " .. round(profitTotalAmount, 2) .. ", brokerComissionAmount: " .. round(brokerComissionAmount, 2) ..
         ", DECISION_VALUES: " .. getConfigValue("DECISION_POSITIVE_VALUE") .. "/-" .. getConfigValue("DECISION_NEGATIVE_VALUE") .. ", прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
 
-    if math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1 then
+    if PositionData["count"] > 0 and (math.floor(params["bid_price"]) < 1 or math.floor(PositionData["awg_price"]) < 1) then
         log("Неконсистентные данные, ничего не делаем: " .. tableToString(params) .. ", " .. tableToString(PositionData))
         return
     end
@@ -166,9 +171,10 @@ function process()
              end
         end
     else
-        -- @todo Тут надо покупать позицию. Также возможно сюда прикрутить стратегию на понижение
-        log("Надо покупать позицию, потому-что её нет")
-        sendOrder(TradeTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
+        if getTrendType() == TrendTypeBull then
+            -- При восходящем тренде имеет смысл покупать
+            sendOrder(TradeTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
+        end
     end
 end
 
@@ -201,6 +207,20 @@ function sendOrder(tradeType, quantity)
     --message("RESULT: " .. result)
 
     pauseTrading(true)
+end
+
+function collectTrendData()
+    local bid = getParamEx(classCode, secCode, "bid")
+    local offer = getParamEx(classCode, secCode, "offer")
+
+    -- @todo Сохранять данные СПРОСА, а не предложения
+    -- bid["param_value"]
+end
+
+function getTrendType()
+    -- @todo Определять направление тренда и в зависимости от него использовать разные стратегии
+    -- Направление тренда можно строить по тем данным, которые приходят в обработчик OnParam - надо сохранять данные за определённый период и работать с ними
+    return TrendTypeBull
 end
 
 function pauseTrading(pause)
