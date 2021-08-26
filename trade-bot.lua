@@ -1,5 +1,6 @@
 require("helper")
 require("config")
+require("trends")
 
 PositionData = {
     awg_price = 0,
@@ -8,12 +9,10 @@ PositionData = {
 
 PauseTrading = false
 
-TradeTypeBuy = "B"
-TradeTypeSell = "S"
+OrderTypeBuy = "B"
+OrderTypeSell = "S"
 
-TrendData = {}
-TrendTypeBull = "Bull" -- Восходящий тренд
-TrendTypeBear = "Bear" -- Нисходящий тренд
+
 
 function main()
     log("Запускаем скрипт, " .. _VERSION)
@@ -49,6 +48,7 @@ end
 
 function OnParam(class, sec)
     if class == getConfigValue("CLASS_CODE") and sec == getConfigValue("SEC_CODE") then
+        collectTrendData(class, sec)
         process()
     end
 end
@@ -158,7 +158,7 @@ function process()
                 -- @todo Тут надо продавать позицию
                 log("Надо продавать, получим чистую прибыль: " .. rouns(profitTotalAmount - brokerComissionAmount, 2))
 
-                sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
+                sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             else
                -- log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
                  --   " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. getConfigValue("DECISION_POSITIVE_VALUE"))
@@ -167,19 +167,19 @@ function process()
             -- Цена уменьшилась, фиксируем убыток
              if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
                 log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
-                sendOrder(TradeTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
+                sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
              end
         end
     else
         if getTrendType() == TrendTypeBull then
             -- При восходящем тренде имеет смысл покупать
-            sendOrder(TradeTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
+            sendOrder(OrderTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
         end
     end
 end
 
-function sendOrder(tradeType, quantity)
-    log("Отправляем заявку на " .. (tradeType == TradeTypeBuy and "покупку" or "продажу") .. " " .. quantity .. " лотов")
+function sendOrder(orderType, quantity)
+    log("Отправляем заявку на " .. (orderType == OrderTypeBuy and "покупку" or "продажу") .. " " .. quantity .. " лотов")
 
     result = sendTransaction({
         ACCOUNT = getConfigValue("TRADING_ACCOUNT_ID"),
@@ -190,37 +190,20 @@ function sendOrder(tradeType, quantity)
         TYPE = "M", -- L - лимитированная (limit), M - рыночная (market)
         TRANS_ID = tostring(math.floor(1000 * os.clock())), -- От 1 до 2 147 483 647, порядковый номер
         ACTION = "NEW_ORDER",
-        OPERATION = tradeType, -- S - продать (sell), B - купить (buy)
+        OPERATION = orderType, -- S - продать (sell), B - купить (buy)
         PRICE = "0",
         QUANTITY = tostring(quantity)
     })
 
-    if tradeType == TradeTypeBuy then
+    if orderType == OrderTypeBuy then
         PositionData["count"] = quantity
-        --log("PositionData: " .. tableToString(PositionData))
     else
         PositionData["count"] = 0 -- Чтобы нельзя было снова продать и уйти в минус
-        --log("PositionData: " .. tableToString(PositionData))
     end
 
     log("Результат отправки заявки: " .. result)
-    --message("RESULT: " .. result)
 
     pauseTrading(true)
-end
-
-function collectTrendData()
-    local bid = getParamEx(classCode, secCode, "bid")
-    local offer = getParamEx(classCode, secCode, "offer")
-
-    -- @todo Сохранять данные СПРОСА, а не предложения
-    -- bid["param_value"]
-end
-
-function getTrendType()
-    -- @todo Определять направление тренда и в зависимости от него использовать разные стратегии
-    -- Направление тренда можно строить по тем данным, которые приходят в обработчик OnParam - надо сохранять данные за определённый период и работать с ними
-    return TrendTypeBull
 end
 
 function pauseTrading(pause)
