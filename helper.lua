@@ -35,6 +35,22 @@ function tableToString(val, name, depth)
 end
 
 function round(val, fractionCount)
-  local multiplier = 10 ^ (fractionCount or 0)
-  return math.floor(val * multiplier + 0.5) / multiplier
+    local multiplier = 10 ^ (fractionCount or 0)
+    return math.floor(val * multiplier + 0.5) / multiplier
+end
+
+function getTableSum(val, startPos, count)
+    local sum = 0
+    local counter = 0
+
+    for i = startPos, #val do
+        sum = sum + val[i]
+        counter = counter + 1
+
+        if counter >= count then
+            break
+        end
+    end
+
+    return sum
 end
