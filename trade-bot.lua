@@ -30,6 +30,7 @@ function main()
     initConfig()
 
     -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
+    --local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
     local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
     log("Money: " .. tableToString(money))
 
@@ -64,10 +65,11 @@ end
 
 function updatePositionData()
     local depo = getDepoEx(getConfigValue("FIRM_ID"), getConfigValue("CLIENT_CODE"), getConfigValue("SEC_CODE"), getConfigValue("TRADING_ACCOUNT_ID"), 0)
-    PositionData["awg_price"] = depo["awg_position_price"]
-    PositionData["count"] = math.floor(depo["currentbal"])
 
     log("Depo: " .. tableToString(depo))
+
+    PositionData["awg_price"] = depo["awg_position_price"]
+    PositionData["count"] = math.floor(depo["currentbal"])
 
     -- 03-08-2021 02:00:10.312: Depo: {
     -- wa_position_price = 306.3,

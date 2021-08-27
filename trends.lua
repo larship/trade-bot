@@ -11,7 +11,7 @@ local NeutralTrendFactor = 0.0005 -- 0.0025
 function collectTrendData(classCode, secCode)
     local bid = getParamEx(classCode, secCode, "bid")
 
-    if bid["param_value"] == TrendData[#TrendData] then
+    if #TrendData > 0 and bid["param_value"] == TrendData[#TrendData] then
         return
     end
 
@@ -27,22 +27,26 @@ end
 
 function getTrendType()
     if #TrendData >= TrendSizeForComputing then
-        local headSum = getTableSum(TrendData, 1, 3)
-        local tailSum = getTableSum(TrendData, #TrendData - 2, 3)
+        local headAvg = getTableSum(TrendData, 1, 3) / 3
+        local tailAvg = getTableSum(TrendData, #TrendData - 2, 3) / 3
 
-        log("headSum: " .. headSum .. ", tailSum: " .. tailSum .. ", abs: " .. math.abs(headSum - tailSum) .. ", neutralVal: " .. headSum * NeutralTrendFactor)
+        log("headAvg: " .. headAvg .. ", tailAvg: " .. tailAvg .. ", abs: " .. math.abs(headAvg - tailAvg) .. ", neutralVal: " .. headAvg * NeutralTrendFactor)
     
         -- Если разница меньше определённого процента - считаем тренд боковым
-        if math.abs(headSum - tailSum) < headSum * NeutralTrendFactor then
+        if math.abs(headAvg - tailAvg) < headAvg * NeutralTrendFactor then
+            log('TrendTypeNeutral')
             return TrendTypeNeutral
         end
 
-        if headSum < tailSum then
+        if headAvg < tailAvg then
+            log('TrendTypeBull')
             return TrendTypeBull
         end
 
+        log('TrendTypeBear')
         return TrendTypeBear
     end
 
+    log('TrendTypeUnknown')
     return TrendTypeUnknown
 end
