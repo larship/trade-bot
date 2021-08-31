@@ -32,6 +32,9 @@ function main()
     -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
     --local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
     local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
+
+local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
+
     log("Money: " .. tableToString(money))
 
     updatePositionData()
@@ -172,10 +175,17 @@ function process()
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
              end
         end
-    else
-        if getTrendType() == TrendTypeBull then
-            -- При восходящем тренде имеет смысл покупать
+    elseif PositionData["count"] < 0 then
+        -- Шортили и позиция в минусе
+        -- @todo Надо покупать
+    elseif PositionData["count"] == 0 then
+        local trendType = getTrendType()
+        if trendType == TrendTypeBull then
+            -- При восходящем тренде покупаем
             sendOrder(OrderTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
+        elseif trendType == TrendTypeBear then
+            -- При нисходящем тренде продаём
+            sendOrder(OrderTypeSell, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
         end
     end
 end
