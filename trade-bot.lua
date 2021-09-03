@@ -12,8 +12,6 @@ PauseTrading = false
 OrderTypeBuy = "B"
 OrderTypeSell = "S"
 
-
-
 function main()
     log("Запускаем скрипт, " .. _VERSION)
 
@@ -32,10 +30,11 @@ function main()
     -- Брать из money_limit_available (тут лучше - доступное количество) или money_current_balance (текущий баланс)
     --local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
     local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
-
-local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
+    local money = getMoney(getConfigValue("CLIENT_CODE"), getConfigValue("FIRM_ID"), getConfigValue("TAG"), "SUR")
 
     log("Money: " .. tableToString(money))
+
+    log('ALLOW_SHORTS: ' .. (tostring(getConfigValue('ALLOW_SHORTS') == '1')))
 
     updatePositionData()
     process()
@@ -170,21 +169,29 @@ function process()
             end
         elseif priceDiff < 0 then
             -- Цена уменьшилась, фиксируем убыток
-             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
+            if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
                 log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
-             end
+            end
         end
     elseif PositionData["count"] < 0 then
         -- Шортили и позиция в минусе
-        -- @todo Надо покупать
+        if priceDiff > 0 then
+            -- Цена поднялась, фиксируем убыток
+            if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
+                log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
+            end
+        elseif priceDiff < 0 then
+
+        end
     elseif PositionData["count"] == 0 then
         local trendType = getTrendType()
         if trendType == TrendTypeBull then
             -- При восходящем тренде покупаем
             sendOrder(OrderTypeBuy, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
-        elseif trendType == TrendTypeBear then
-            -- При нисходящем тренде продаём
+        elseif trendType == TrendTypeBear and getConfigValue('ALLOW_SHORTS') == '1' then
+            -- При нисходящем тренде продаём, если в конфиге включена возможность шортов
             sendOrder(OrderTypeSell, math.floor(tonumber(getConfigValue("BUY_LOT_QUANTITY"))))
         end
     end
