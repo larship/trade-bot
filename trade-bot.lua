@@ -179,7 +179,7 @@ function process()
         if priceDiff > 0 then
             -- Цена поднялась, фиксируем убыток
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
-                log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                log("Надо покупать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             end
         elseif priceDiff < 0 then
