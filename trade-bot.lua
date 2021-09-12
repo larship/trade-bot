@@ -180,10 +180,14 @@ function process()
             -- Цена поднялась, фиксируем убыток
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
                 log("Надо покупать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
-                sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
+                sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
             end
         elseif priceDiff < 0 then
-
+            -- Цена опустилась, для шортов это прибыль при покупке
+            if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
+                log("Надо покупать, получим чистую прибыль: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
+            end
         end
     elseif PositionData["count"] == 0 then
         local trendType = getTrendType()
