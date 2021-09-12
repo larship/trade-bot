@@ -160,7 +160,7 @@ function process()
             -- Цена увеличилась, прибыль при продаже
             if  profitTotalAmount - brokerComissionAmount >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
                 -- @todo Тут надо продавать позицию
-                log("Надо продавать, получим чистую прибыль: " .. rouns(profitTotalAmount - brokerComissionAmount, 2))
+                log("Надо продавать, получим чистую прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
 
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             else
@@ -170,7 +170,7 @@ function process()
         elseif priceDiff < 0 then
             -- Цена уменьшилась, фиксируем убыток
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
-                log("Надо продавать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                log("Надо продавать и фиксировать убыток: " .. round(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
             end
         end
@@ -179,13 +179,13 @@ function process()
         if priceDiff > 0 then
             -- Цена поднялась, фиксируем убыток
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
-                log("Надо покупать и фиксировать убыток: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                log("Надо покупать и фиксировать убыток: " .. round(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
             end
         elseif priceDiff < 0 then
             -- Цена опустилась, для шортов это прибыль при покупке
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
-                log("Надо покупать, получим чистую прибыль: " .. rouns(math.abs(profitTotalAmount - brokerComissionAmount), 2))
+                log("Надо покупать, получим чистую прибыль: " .. round(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
             end
         end
