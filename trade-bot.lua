@@ -159,13 +159,8 @@ function process()
         if priceDiff > 0 then
             -- Цена увеличилась, прибыль при продаже
             if  profitTotalAmount - brokerComissionAmount >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
-                -- @todo Тут надо продавать позицию
                 log("Надо продавать, получим чистую прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
-
                 sendOrder(OrderTypeSell, math.floor(PositionData["count"] / params["lot_size"]))
-            else
-               -- log("Не продаём, т.к. не будет получено требуемое значение прибыли: " .. profitTotalAmount .. " - " .. brokerComissionAmount ..
-                 --   " = " .. (profitTotalAmount - brokerComissionAmount) .. " < " .. getConfigValue("DECISION_POSITIVE_VALUE"))
             end
         elseif priceDiff < 0 then
             -- Цена уменьшилась, фиксируем убыток
