@@ -130,22 +130,12 @@ function process()
         return
     end
 
-    -- Вначале надо проверить, есть ли у нас купленная позиция
-    --     Если позиции нет - просто покупаем
-    --     Если позиция есть:
-    --         Если цена поднялась достаточно (коэффициент 1) - продаём, получаем прибыль
-    --         Если цена опустилась достаточно (коэффициент 0.3) - продаём, получаем убыток
-    --         Если цена поднялась или опустилась недостаточно - ничего не делаем
-
-    -- Также надо ввести дополнительные проверки:
-    -- Например, каждые минуту / пять минут проверять цену, если она падает сколько то раз подряд - алертить и вообще не торговать
-    -- Потому-что данный бот пока-что не умеет торговать в прибыль при падении
-
     local params = getParams(getConfigValue("CLASS_CODE"), getConfigValue("SEC_CODE"))
     local profitTotalAmount = params["bid_price"] * PositionData["count"] - PositionData["awg_price"] * PositionData["count"]
     local brokerComissionAmount = math.abs(params["bid_price"] * PositionData["count"] * tonumber(getConfigValue("BROKER_COMISSION_FACTOR")) * 2) -- *2 здесь - т.к. комиссия есть и за покупку, и за продажу
 
     local priceDiff = params["bid_price"] - PositionData["awg_price"]
+
     log("Спрос: " .. round(params["bid_price"], 2) .. ", предложение: " .. round(params["offer_price"], 2) .. ", штук в лоте: " .. math.ceil(params["lot_size"]))
     log("Цена покупки позиции: " .. round(PositionData["awg_price"], 2) .. ", priceDiff: " .. round(priceDiff , 2).. ", profitTotalAmount: " .. round(profitTotalAmount, 2) .. ", brokerComissionAmount: " .. round(brokerComissionAmount, 2) ..
         ", DECISION_VALUES: " .. getConfigValue("DECISION_POSITIVE_VALUE") .. "/-" .. getConfigValue("DECISION_NEGATIVE_VALUE") .. ", прибыль: " .. round(profitTotalAmount - brokerComissionAmount, 2))
@@ -172,13 +162,13 @@ function process()
     elseif PositionData["count"] < 0 then
         -- Шортили и позиция в минусе
         if priceDiff > 0 then
-            -- Цена поднялась, фиксируем убыток
+            -- Цена поднялась, для шортов это убыток при покупке
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_NEGATIVE_VALUE")) then
                 log("Надо покупать и фиксировать убыток: " .. round(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
             end
         elseif priceDiff < 0 then
-            -- Цена опустилась, для шортов это прибыль при покупке
+            -- Цена опустилась, прибыль при покупке
             if  math.abs(profitTotalAmount - brokerComissionAmount) >= tonumber(getConfigValue("DECISION_POSITIVE_VALUE")) then
                 log("Надо покупать, получим чистую прибыль: " .. round(math.abs(profitTotalAmount - brokerComissionAmount), 2))
                 sendOrder(OrderTypeBuy, math.floor(PositionData["count"] / params["lot_size"]))
